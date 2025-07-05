@@ -13,7 +13,7 @@ RUN go mod download
 COPY . .
 
 # Build
-RUN go build -o main ./cmd/web/
+RUN go build -o main .
 
 # Use a smaller image for the final app
 FROM alpine:latest
