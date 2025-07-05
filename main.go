@@ -1,9 +1,15 @@
 package main
 
 import (
+	"embed"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"uhkay.com/templates"
 )
+
+//go:embed static
+var staticFiles embed.FS
 
 func main() {
 	mainComponent := templates.Main()
@@ -12,7 +18,7 @@ func main() {
 	r.GET("/", func(c *gin.Context) {
 		mainComponent.Render(c.Request.Context(), c.Writer)
 	})
-	r.Static("/static", "./static")
+	r.StaticFS("/static", http.FS(staticFiles))
 
 	r.Run(":8000")
 }
