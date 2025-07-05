@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "style": "bunx @tailwindcss/cli -i ./static/css/input.css -o ./static/css/output.css --watch --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.1.11"
+  },
+  "dependencies": {
+    "@tailwindcss/cli": "^4.1.11"
+  }
+}

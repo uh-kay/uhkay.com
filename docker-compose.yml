@@ -1,0 +1,12 @@
+services:
+  uhkay-com:
+    container_name: uhkay-com
+    restart: unless-stopped
+    build: .
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    name: proxy
+    external: true
