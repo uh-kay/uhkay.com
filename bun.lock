@@ -2,16 +2,17 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "dependencies": {
-        "@tailwindcss/cli": "^4.1.11",
-      },
       "devDependencies": {
+        "@catppuccin/tailwindcss": "1.0.0-beta.1",
+        "@tailwindcss/cli": "^4.1.11",
         "tailwindcss": "^4.1.11",
       },
     },
   },
   "packages": {
     "@ampproject/remapping": ["@ampproject/remapping@2.3.0", "", { "dependencies": { "@jridgewell/gen-mapping": "^0.3.5", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="],
+
+    "@catppuccin/tailwindcss": ["@catppuccin/tailwindcss@1.0.0-beta.1", "", {}, "sha512-+mnOXw8JAT0Kz+KDi0dMM16YJMTC+N0yTzOU5n3b3ibUQFv4DQTVPYAx+P7iKfSwG+5w4gZ4+kupQQHKkcXnFg=="],
 
     "@isaacs/fs-minipass": ["@isaacs/fs-minipass@4.0.1", "", { "dependencies": { "minipass": "^7.0.4" } }, "sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w=="],
 

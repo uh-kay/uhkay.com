@@ -8,7 +8,7 @@ package templates
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-func main() templ.Component {
+func about() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -29,7 +29,7 @@ func main() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"bg-[#1e1e2e] w-full h-dvh flex justify-center items-start\"><div class=\"flex justify-center flex-col items-start w-sm\"><h1 class=\"text-[#cdd6f4] text-3xl py-8\">Hi there!</h1><h2 class=\"text-[#cdd6f4] text-2xl pb-2\">Check out the latest updates:</h2><div class=\"mb-8\"><li class=\"text-[#cdd6f4]\">now using Svelte and Fiber (12/5/2025)</li><li class=\"text-[#cdd6f4]\">rewrite frontend to templ (5/7/2025)</li></div><img alt=\"BSOD Las Vegas balls\" src=\"/static/images/bsod-balls.jpg\" class=\"my-4 w-[300px] h-[300px]\"></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"w-3xl h-dvh mt-32\"><h1>Hi there!</h1><p class=\"pt-2\">My name is uhkay. I'm a software engineer, particularly interested in web development and embedded systems. I like to learn new things and solve problems.</p></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -37,7 +37,7 @@ func main() templ.Component {
 	})
 }
 
-func Main() templ.Component {
+func About() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -58,7 +58,7 @@ func Main() templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = Index(navbar(), main()).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Layout(about()).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -1,19 +1,21 @@
 package templates
 
-templ Index(children ...templ.Component) {
-	<!DOCTYPE html>
-	<html lang="en">
-		<head>
-			<meta charset="UTF-8"/>
-			<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>uhkay homepage</title>
-			<link rel="stylesheet" href="/static/css/output.css"/>
-		</head>
-		<body>
-			for _, child := range children {
-				@child
-			}
-		</body>
-	</html>
+templ index() {
+	<div class="w-3xl h-dvh">
+		<div class="flex justify-center flex-col items-center">
+			<h1 class="text-3xl py-8">Hi there!</h1>
+			<h2 class="text-2xl pb-2">Check out the latest updates:</h2>
+			<div class="mb-8">
+				<ul class="list-disc list-inside">
+					<li>now using Svelte and Fiber (12/5/2025)</li>
+					<li>rewrite frontend to templ (5/7/2025)</li>
+				</ul>
+			</div>
+			<img alt="BSOD Las Vegas balls" src="/static/images/bsod-balls.png" class="my-4"/>
+		</div>
+	</div>
+}
+
+templ Index() {
+	@Layout(index())
 }

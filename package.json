@@ -3,9 +3,8 @@
     "style": "bunx @tailwindcss/cli -i ./static/css/input.css -o ./static/css/output.css --watch --minify"
   },
   "devDependencies": {
+    "@catppuccin/tailwindcss": "1.0.0-beta.1",
+    "@tailwindcss/cli": "^4.1.11",
     "tailwindcss": "^4.1.11"
-  },
-  "dependencies": {
-    "@tailwindcss/cli": "^4.1.11"
   }
 }

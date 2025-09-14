@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"embed"
-	"io/fs"
-	"net/http"
+	"log"
+	"os"
+	"path/filepath"
 
-	"github.com/gin-gonic/gin"
+	"github.com/a-h/templ"
 	"uhkay.com/templates"
 )
 
@@ -13,19 +15,26 @@ import (
 var staticFiles embed.FS
 
 func main() {
-	mainComponent := templates.Main()
-
-	r := gin.Default()
-	r.SetTrustedProxies(nil)
-	r.GET("/", func(c *gin.Context) {
-		mainComponent.Render(c.Request.Context(), c.Writer)
-	})
-
-	staticFS, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		panic(err)
+	if err := renderTempltoFile("index.html", templates.Index()); err != nil {
+		log.Fatal(err)
 	}
-	r.StaticFS("/static", http.FS(staticFS))
 
-	r.Run(":8000")
+	if err := renderTempltoFile("about.html", templates.About()); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := renderTempltoFile("projects.html", templates.Projects()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func renderTempltoFile(filename string, component templ.Component) error {
+	path := filepath.Join("./static", filename)
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return component.Render(context.Background(), f)
 }

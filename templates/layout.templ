@@ -1,0 +1,17 @@
+package templates
+
+templ Layout(children ...templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@head()
+		<body hx-boost="true" class="bg-ctp-base text-ctp-text dark:mocha">
+			@navbar()
+			<div class="flex flex-col justify-start items-center">
+				for _, child := range children {
+					@child
+				}
+			</div>
+			<script src="/static/htmx/htmx.min.js"></script>
+		</body>
+	</html>
+}
