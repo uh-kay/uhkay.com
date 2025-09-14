@@ -15,7 +15,7 @@ import (
 var staticFiles embed.FS
 
 func main() {
-	if err := renderTempltoFile("index.html", templates.Index()); err != nil {
+	if err := renderTempltoRoot("index.html", templates.Index()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -30,6 +30,17 @@ func main() {
 
 func renderTempltoFile(filename string, component templ.Component) error {
 	path := filepath.Join("./static", filename)
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return component.Render(context.Background(), f)
+}
+
+func renderTempltoRoot(filename string, component templ.Component) error {
+	path := filepath.Join("./", filename)
 	f, err := os.Create(path)
 	if err != nil {
 		return err
