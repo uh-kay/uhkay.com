@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><title>Send Email Using Lustre</title><meta content="Send email using Gleam, Lustre, and Mailtrap" name="description"><link href="/css/output.css" rel="stylesheet"></head><body class="bg-ctp-base text-ctp-text dark:mocha"><nav><ul class="flex gap-3 p-4 [&amp;&gt;li&gt;a]:hover:text-ctp-green"><li><a href="/">home</a></li><li><a href="/projects">projects</a></li><li><a href="/about">about</a></li></ul></nav><article class="flex justify-center"><div class="max-w-3xl w-full px-4 my-8 space-y-6"><h1 class="text-2xl">Send Email Using Lustre</h1><p>Mar 16, 2026</p><!-- lustre:fragment --><p>Disclaimer: I&#39;m not affiliated or sponsored by Mailtrap.</p><p>Recently I&#39;ve been learning Gleam and I find the language fun and productive. But when
+I&#39;m looking up how to send email using a provider&#39;s API, there&#39;s no tutorial on that so
+I decided to write one. Also, maybe we can use Lustre to send HTML email body? Let&#39;s
+find out if you can do that!</p><p>The whole code is hosted on GitHub: </p><h2 class="text-xl" id>Prerequisite</h2><ul class="list-disc list-inside"><li><a class="underline hover:text-ctp-green" href="https://mailtrap.io/">Mailtrap</a> Account (you can create one for free)</li><li><a class="underline hover:text-ctp-green" href="https://gleam.run">Gleam</a></li></ul><h2 class="text-xl" id>0. Create a new project and install dependencies</h2><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-bash">gleam new app
+gleam <span class="text-[#89b4fa]">add</span> lustre@5
+gleam <span class="text-[#89b4fa]">add</span> gleam_httpc@5
+gleam <span class="text-[#89b4fa]">add</span> envoy@1
+gleam <span class="text-[#89b4fa]">add</span> gleam_http@4
+gleam <span class="text-[#89b4fa]">add</span> gleam_json@3
+</code></pre></div><p><code>Lustre</code> is for creating HTML, <code>gleam_httpc</code> for sending request, <code>envoy</code> for reading
+environment variables, <code>gleam_http</code> for creating new request, and <code>gleam_json</code> for creating
+JSON payload.</p><h2 class="text-xl" id>1. Add environment variables</h2><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code>MAILTRAP_API_KEY=
+MAILTRAP_API_URL=
+</code></pre></div><p>From Mailtrap, get your API key and URL. Put it inside <code>.env</code> and load it. You use
+<a class="underline hover:text-ctp-green" href="https://github.com/direnv/direnv">direnv</a> or load it from
+<a class="underline hover:text-ctp-green" href="https://github.com/casey/just">justfile</a>. Don&#39;t forget to add <code>.env</code> to your
+<code>.gitignore</code>.</p><h2 class="text-xl" id>2. Write some Gleam</h2><p>First we create custom error type <code>MailError</code> so we can combine the error type into one,
+which make the error type descriptive and avoid any type mismatch. Then we write the
+<code>send_email()</code> to send the email to Mailtrap API.</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">envoy</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/http</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/http/request</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/httpc</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/int</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/io</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/json</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/list</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/result</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/string</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">lustre/element</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">lustre/element/html</span>
+
+<span class="text-[#6c7086]">// Create a custom error type</span>
+<span class="text-[#cba6f7]">type</span> <span class="text-[#f9e2af]">MailError</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">MissingApiUrl</span>
+  <span class="text-[#f9e2af]">MissingApiKey</span>
+  <span class="text-[#f9e2af]">TransportError</span><span class="text-[#cdd6f4]">(</span>httpc<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">HttpError</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#f9e2af]">UnexpectedResponse</span><span class="text-[#cdd6f4]">(</span>status<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span> body<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">type</span> <span class="text-[#f9e2af]">Recipient</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">Recipient</span><span class="text-[#cdd6f4]">(</span>email<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#6c7086]">// Encode the Recipient type into JSON. Note: the Gleam LS code action can do this</span>
+<span class="text-[#6c7086]">// automatically for you.</span>
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">recipient_to_json</span><span class="text-[#cdd6f4]">(</span>recipient<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Recipient</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> json<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Json</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">let</span> <span class="text-[#f9e2af]">Recipient</span><span class="text-[#cdd6f4]">(</span>email<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">=</span> recipient
+  <span class="text-[#89dceb]">json</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">object</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span>
+    <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;email&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">json</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">string</span><span class="text-[#cdd6f4]">(</span>email<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">pub</span> <span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">main</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Nil</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">todo</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#6c7086]">// Send an email using Mailtrap API. It takes a bunch of arguments and on success </span>
+<span class="text-[#6c7086]">// returns Nil meanwhile on failure returns MailError.</span>
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">send_email</span><span class="text-[#cdd6f4]">(</span>
+  recipients recipients<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">List</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">Recipient</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  sender sender<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">,</span>
+  sender_name sender_name<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">,</span>
+  email_subject subject<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">,</span>
+  html_body html_body<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">,</span>
+  text_body text_body<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">,</span>
+<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Result</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">Nil</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#f9e2af]">MailError</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#6c7086]">// Get Mailtrap API URL from env vars.</span>
+  <span class="text-[#cba6f7]">use</span> url <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">try</span><span class="text-[#cdd6f4]">(</span>
+    <span class="text-[#89dceb]">envoy</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">get</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;MAILTRAP_API_URL&quot;</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">replace_error</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">MissingApiUrl</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+
+  <span class="text-[#6c7086]">// Get Mailtrap API key from env vars.</span>
+  <span class="text-[#cba6f7]">use</span> api_key <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">try</span><span class="text-[#cdd6f4]">(</span>
+    <span class="text-[#89dceb]">envoy</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">get</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;MAILTRAP_API_KEY&quot;</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">replace_error</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">MissingApiKey</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+
+  <span class="text-[#6c7086]">// Create a new request using the URL.</span>
+  <span class="text-[#cba6f7]">let</span> <span class="text-[#cba6f7]">assert</span> <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span>base_request<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">=</span> <span class="text-[#89dceb]">request</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">to</span><span class="text-[#cdd6f4]">(</span>url<span class="text-[#cdd6f4]">)</span>
+
+  <span class="text-[#6c7086]">// Create a list of tuple containing JSON string key and JSON string value.</span>
+  <span class="text-[#cba6f7]">let</span> email_header <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">[</span>
+    <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span>
+      <span class="text-[#a6e3a1]">&quot;from&quot;</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">json</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">object</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span>
+        <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;email&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">json</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">string</span><span class="text-[#cdd6f4]">(</span>sender<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+        <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;name&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">json</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">string</span><span class="text-[#cdd6f4]">(</span>sender_name<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;to&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">json</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">array</span><span class="text-[#cdd6f4]">(</span>recipients<span class="text-[#cdd6f4]">,</span> recipient_to_json<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;subject&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">json</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">string</span><span class="text-[#cdd6f4]">(</span>subject<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">]</span>
+  <span class="text-[#cba6f7]">let</span> email_body <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">[</span>
+    <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;html&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">json</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">string</span><span class="text-[#cdd6f4]">(</span>html_body<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;text&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">json</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">string</span><span class="text-[#cdd6f4]">(</span>text_body<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">]</span>
+  
+  <span class="text-[#6c7086]">// Combine both list into one, turn it into json.Json and turn it into string.</span>
+  <span class="text-[#cba6f7]">let</span> payload <span class="text-[#89dceb]">=</span>
+    <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">append</span><span class="text-[#cdd6f4]">(</span>email_header<span class="text-[#cdd6f4]">,</span> email_body<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">|&gt;</span> json<span class="text-[#cdd6f4]">.</span>object <span class="text-[#89dceb]">|&gt;</span> json<span class="text-[#cdd6f4]">.</span>to_string
+
+  <span class="text-[#6c7086]">// From the base request, add post method, set auth header using the API key, set</span>
+  <span class="text-[#6c7086]">// content type to application/json, and set the JSON body.</span>
+  <span class="text-[#cba6f7]">let</span> req <span class="text-[#89dceb]">=</span>
+    base_request
+    <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">request</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">set_method</span><span class="text-[#cdd6f4]">(</span>http<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Post</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">request</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">set_header</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;Authorization&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;Bearer &quot;</span> <span class="text-[#89dceb]">&lt;&gt;</span> api_key<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">request</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">set_header</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;Content-Type&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;application/json&quot;</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">request</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">set_body</span><span class="text-[#cdd6f4]">(</span>payload<span class="text-[#cdd6f4]">)</span>
+
+  <span class="text-[#6c7086]">// Send the request, we map the error into MailError.</span>
+  <span class="text-[#cba6f7]">use</span> res <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">try</span><span class="text-[#cdd6f4]">(</span><span class="text-[#89dceb]">httpc</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">send</span><span class="text-[#cdd6f4]">(</span>req<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">map_error</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">TransportError</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+
+  <span class="text-[#6c7086]">// Check if status is 200-299, if it is not, return UnexpectedResponse with the </span>
+  <span class="text-[#6c7086]">// response&#39;s status and body.</span>
+  <span class="text-[#cba6f7]">case</span> res<span class="text-[#cdd6f4]">.</span>status <span class="text-[#89dceb]">&gt;=</span> <span class="text-[#fab387]">200</span> <span class="text-[#89dceb]">&amp;&amp;</span> res<span class="text-[#cdd6f4]">.</span>status <span class="text-[#89dceb]">&lt;</span> <span class="text-[#fab387]">300</span> <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#f9e2af]">True</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">Nil</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#f9e2af]">False</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">UnexpectedResponse</span><span class="text-[#cdd6f4]">(</span>res<span class="text-[#cdd6f4]">.</span>status<span class="text-[#cdd6f4]">,</span> res<span class="text-[#cdd6f4]">.</span>body<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+<span class="text-[#cdd6f4]">}</span>
+</code></pre></div><h2 class="text-xl" id>3. Handle the error</h2><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#6c7086]">// ...</span>
+
+<span class="text-[#6c7086]">// handle_error takes in MailError, pattern match the error and print the error to</span>
+<span class="text-[#6c7086]">// stderr.</span>
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">handle_error</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">MailError</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">case</span> err <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#f9e2af]">MissingApiUrl</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#89dceb]">io</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">println_error</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;Missing API url!&quot;</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#f9e2af]">MissingApiKey</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#89dceb]">io</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">println_error</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;Missing API key!&quot;</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#f9e2af]">TransportError</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span>
+      <span class="text-[#6c7086]">// in production you&#39;d want to not using string.inspect()</span>
+      <span class="text-[#89dceb]">io</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">println_error</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;Fail to send request. Error: &quot;</span> <span class="text-[#89dceb]">&lt;&gt;</span> <span class="text-[#89dceb]">string</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">inspect</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#f9e2af]">UnexpectedResponse</span><span class="text-[#cdd6f4]">(</span>status<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span> body<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span>
+      <span class="text-[#89dceb]">io</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">println_error</span><span class="text-[#cdd6f4]">(</span>
+        <span class="text-[#a6e3a1]">&quot;Mailtrap error: status: &quot;</span> <span class="text-[#89dceb]">&lt;&gt;</span> <span class="text-[#89dceb]">int</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">to_string</span><span class="text-[#cdd6f4]">(</span>status<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">&lt;&gt;</span> <span class="text-[#a6e3a1]">&quot; body: &quot;</span> <span class="text-[#89dceb]">&lt;&gt;</span> body<span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+<span class="text-[#cdd6f4]">}</span>
+</code></pre></div><p>Handling error is important so you can always make it better than this, maybe add
+logging, be more descriptive, etc. But for this example that&#39;s what I do to keep things
+simple.</p><h2 class="text-xl" id>4. Use send_email</h2><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#cba6f7]">pub</span> <span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">main</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Nil</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">let</span> result <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#cba6f7]">let</span> recipients <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#f9e2af]">Recipient</span><span class="text-[#cdd6f4]">(</span>email<span class="text-[#cdd6f4]">:</span> <span class="text-[#a6e3a1]">&quot;contact@uhkay.com&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span>
+    <span class="text-[#cba6f7]">let</span> sender <span class="text-[#89dceb]">=</span> <span class="text-[#a6e3a1]">&quot;lucy@example.com&quot;</span>
+    <span class="text-[#cba6f7]">let</span> sender_name <span class="text-[#89dceb]">=</span> <span class="text-[#a6e3a1]">&quot;Lucy&quot;</span>
+    <span class="text-[#cba6f7]">let</span> email_subject <span class="text-[#89dceb]">=</span> <span class="text-[#a6e3a1]">&quot;Gleam Club Invitation&quot;</span>
+    <span class="text-[#cba6f7]">let</span> html_body <span class="text-[#89dceb]">=</span> <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">p</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span>
+      <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">text</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;You met me at a very gleamy time of my life.&quot;</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">|&gt;</span> element<span class="text-[#cdd6f4]">.</span>to_string
+    <span class="text-[#cba6f7]">let</span> text_body <span class="text-[#89dceb]">=</span> <span class="text-[#a6e3a1]">&quot;You met me at a very gleamy time of my life.&quot;</span>
+
+    <span class="text-[#89b4fa]">send_email</span><span class="text-[#cdd6f4]">(</span>
+      recipients<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      sender<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      sender_name<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      email_subject<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      html_body<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      text_body<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+
+  <span class="text-[#cba6f7]">case</span> result <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#89dceb]">io</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">println</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;Email sent!&quot;</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#89b4fa]">handle_error</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+<span class="text-[#cdd6f4]">}</span>
+</code></pre></div><h2 class="text-xl" id>5. Email Template (optional)</h2><p>If you want to make an email template, you can easily make one:</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#6c7086]">// It&#39;s just a normal function!</span>
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">email_template</span><span class="text-[#cdd6f4]">(</span>message<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">p</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">text</span><span class="text-[#cdd6f4]">(</span>message<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#89dceb]">|&gt;</span> element<span class="text-[#cdd6f4]">.</span>to_string
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">pub</span> <span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">main</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Nil</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">let</span> result <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#cba6f7]">let</span> recipients <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#f9e2af]">Recipient</span><span class="text-[#cdd6f4]">(</span>email<span class="text-[#cdd6f4]">:</span> <span class="text-[#a6e3a1]">&quot;contact@uhkay.com&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span>
+    <span class="text-[#cba6f7]">let</span> sender <span class="text-[#89dceb]">=</span> <span class="text-[#a6e3a1]">&quot;hello@example.com&quot;</span>
+    <span class="text-[#cba6f7]">let</span> sender_name <span class="text-[#89dceb]">=</span> <span class="text-[#a6e3a1]">&quot;Mailtrap Test&quot;</span>
+    <span class="text-[#cba6f7]">let</span> email_subject <span class="text-[#89dceb]">=</span> <span class="text-[#a6e3a1]">&quot;Gleam Club Invitation&quot;</span>
+    <span class="text-[#6c7086]">// You use it like a normal function too.</span>
+    <span class="text-[#cba6f7]">let</span> html_body <span class="text-[#89dceb]">=</span>
+      <span class="text-[#89b4fa]">email_template</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;You met me at a very gleamy time of my life.&quot;</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cba6f7]">let</span> text_body <span class="text-[#89dceb]">=</span> <span class="text-[#a6e3a1]">&quot;You met me at a very gleamy time of my life.&quot;</span>
+
+    <span class="text-[#89b4fa]">send_email</span><span class="text-[#cdd6f4]">(</span>
+      recipients<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      sender<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      sender_name<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      email_subject<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      html_body<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+      text_body<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+
+  <span class="text-[#cba6f7]">case</span> result <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#89dceb]">io</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">println</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;Email sent!&quot;</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#89b4fa]">handle_error</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+<span class="text-[#cdd6f4]">}</span>
+</code></pre></div><p>Here&#39;s where Lustre shine, you can just write the entire thing in Gleam! In other
+languages you&#39;d need to learn custom templating syntax.</p><p>And that&#39;s it folks! If you find this useful, feel free to share it =)</p><!-- /lustre:fragment --></div></article></body></html>

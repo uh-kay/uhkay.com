@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0.1">
+<channel>
+<title>uhkay's blog</title>
+<link>https://uhkay.com</link>
+<description>my personal blog</description>
+<language>en-us</language>
+<generator>Blogatto</generator>
+<item>
+<title>Send Email Using Lustre</title>
+<description>Disclaimer: I&#39;m not affiliated or sponsored by Mailtrap.Recently I&#39;ve been learning Gleam and I find the language fun and productive. But when I&#39;m looking up how to send email using a</description>
+<link>https://uhkay.com/blog/send-email-using-lustre/</link>
+<pubDate>2026-03-16T16:00:00Z</pubDate>
+<guid isPermaLink="true">https://uhkay.com/blog/send-email-using-lustre/</guid>
+</item></channel>
+</rss>

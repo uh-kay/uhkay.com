@@ -1,0 +1,8 @@
+dev:
+    gleam dev
+
+watch:
+    watchexec -e gleam --stop-timeout 500ms -r just dev
+
+style:
+    ./bin/tailwindcss-linux-x64 -i ./static/css/input.css -o ./static/css/output.css --minify --watch
