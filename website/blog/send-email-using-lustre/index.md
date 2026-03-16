@@ -13,6 +13,7 @@ I decided to write one. Also, maybe we can use Lustre to send HTML email body? L
 find out if you can do that!
 
 The whole code is hosted on GitHub: 
+[lustre-email-example](https://github.com/uh-kay/lustre-email-example/tree/main/app)
 
 ## Prerequisite
 
