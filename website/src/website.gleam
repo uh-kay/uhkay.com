@@ -193,7 +193,9 @@ fn post_template(post: Post(Nil), _all_posts: List(Post(Nil))) {
       navbar(),
       html.article([attribute.class("flex justify-center")], [
         html.div([attribute.class("max-w-3xl w-full px-4 my-8 space-y-6")], [
-          html.h1([attribute.class("text-2xl")], [element.text(post.title)]),
+          html.h1([attribute.class("text-2xl font-bold")], [
+            element.text(post.title),
+          ]),
           html.p([], [element.text(timestamp_to_string(post.date))]),
           element.fragment(post.contents),
         ]),

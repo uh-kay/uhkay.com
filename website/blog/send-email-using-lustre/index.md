@@ -45,7 +45,7 @@ From Mailtrap, get your API key and URL. Put it inside `.env` and load it. You u
 [justfile](https://github.com/casey/just). Don't forget to add `.env` to your 
 `.gitignore`.
 
-## 2. Write some Gleam
+## 2. Write send_email function
 
 First we create custom error type `MailError` so we can combine the error type into one,
 which make the error type descriptive and avoid any type mismatch. Then we write the
@@ -179,7 +179,7 @@ Handling error is important so you can always make it better than this, maybe ad
 logging, be more descriptive, etc. But for this example that's what I do to keep things
 simple.
 
-## 4. Use send_email
+## 4. Use send_email on main
 ```gleam
 pub fn main() -> Nil {
   let result = {
@@ -209,7 +209,7 @@ pub fn main() -> Nil {
 }
 ```
 
-## 5. Email Template (optional)
+## 5. Email template (optional)
 
 If you want to make an email template, you can easily make one:
 ```gleam
@@ -246,6 +246,11 @@ pub fn main() -> Nil {
   }
 }
 ```
+
+Now let's compile and run the code, enter `gleam run` on the terminal. If nothing's
+wrong you should see "Email sent!" on the terminal. You can check in Mailtrap's sandbox
+to see there's a new email sent.
+
 Here's where Lustre shine, you can just write the entire thing in Gleam! In other 
 languages you'd need to learn custom templating syntax.
 
