@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><title>Send Email Using Lustre</title><meta content="Send email using Gleam, Lustre, and Mailtrap" name="description"><link href="/css/output.css" rel="stylesheet"></head><body class="bg-ctp-base text-ctp-text dark:mocha"><nav><ul class="flex gap-3 p-4 [&amp;&gt;li&gt;a]:hover:text-ctp-green"><li><a href="/">home</a></li><li><a href="/projects">projects</a></li><li><a href="/about">about</a></li></ul></nav><article class="flex justify-center"><div class="max-w-3xl w-full px-4 my-8 space-y-6"><h1 class="text-2xl">Send Email Using Lustre</h1><p>Mar 16, 2026</p><!-- lustre:fragment --><p>Disclaimer: I&#39;m not affiliated or sponsored by Mailtrap.</p><p>Recently I&#39;ve been learning Gleam and I find the language fun and productive. But when
+<html lang="en"><head><meta charset="UTF-8"><title>Send Email Using Lustre</title><meta content="Send email using Gleam, Lustre, and Mailtrap" name="description"><link href="/css/output.css" rel="stylesheet"></head><body class="bg-ctp-base text-ctp-text dark:mocha"><nav><ul class="flex gap-3 p-4 [&amp;&gt;li&gt;a]:hover:text-ctp-green"><li><a href="/">home</a></li><li><a href="/projects">projects</a></li><li><a href="/about">about</a></li></ul></nav><article class="flex justify-center"><div class="max-w-3xl w-full px-4 my-8 space-y-6"><h1 class="text-2xl font-bold">Send Email Using Lustre</h1><p>Mar 16, 2026</p><!-- lustre:fragment --><p>Disclaimer: I&#39;m not affiliated or sponsored by Mailtrap.</p><p>Recently I&#39;ve been learning Gleam and I find the language fun and productive. But when
 I&#39;m looking up how to send email using a provider&#39;s API, there&#39;s no tutorial on that so
 I decided to write one. Also, maybe we can use Lustre to send HTML email body? Let&#39;s
 find out if you can do that!</p><p>The whole code is hosted on GitHub:
@@ -16,7 +16,7 @@ MAILTRAP_API_URL=
 </code></pre></div><p>From Mailtrap, get your API key and URL. Put it inside <code>.env</code> and load it. You use
 <a class="underline hover:text-ctp-green" href="https://github.com/direnv/direnv">direnv</a> or load it from
 <a class="underline hover:text-ctp-green" href="https://github.com/casey/just">justfile</a>. Don&#39;t forget to add <code>.env</code> to your
-<code>.gitignore</code>.</p><h2 class="text-xl" id>2. Write some Gleam</h2><p>First we create custom error type <code>MailError</code> so we can combine the error type into one,
+<code>.gitignore</code>.</p><h2 class="text-xl" id>2. Write send_email function</h2><p>First we create custom error type <code>MailError</code> so we can combine the error type into one,
 which make the error type descriptive and avoid any type mismatch. Then we write the
 <code>send_email()</code> to send the email to Mailtrap API.</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">envoy</span>
 <span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/http</span>
@@ -138,7 +138,7 @@ which make the error type descriptive and avoid any type mismatch. Then we write
 <span class="text-[#cdd6f4]">}</span>
 </code></pre></div><p>Handling error is important so you can always make it better than this, maybe add
 logging, be more descriptive, etc. But for this example that&#39;s what I do to keep things
-simple.</p><h2 class="text-xl" id>4. Use send_email</h2><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#cba6f7]">pub</span> <span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">main</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Nil</span> <span class="text-[#cdd6f4]">{</span>
+simple.</p><h2 class="text-xl" id>4. Use send_email on main</h2><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#cba6f7]">pub</span> <span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">main</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Nil</span> <span class="text-[#cdd6f4]">{</span>
   <span class="text-[#cba6f7]">let</span> result <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">{</span>
     <span class="text-[#cba6f7]">let</span> recipients <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#f9e2af]">Recipient</span><span class="text-[#cdd6f4]">(</span>email<span class="text-[#cdd6f4]">:</span> <span class="text-[#a6e3a1]">&quot;contact@uhkay.com&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span>
     <span class="text-[#cba6f7]">let</span> sender <span class="text-[#89dceb]">=</span> <span class="text-[#a6e3a1]">&quot;lucy@example.com&quot;</span>
@@ -164,7 +164,7 @@ simple.</p><h2 class="text-xl" id>4. Use send_email</h2><div class="bg-[#313244]
     <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#89b4fa]">handle_error</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span>
   <span class="text-[#cdd6f4]">}</span>
 <span class="text-[#cdd6f4]">}</span>
-</code></pre></div><h2 class="text-xl" id>5. Email Template (optional)</h2><p>If you want to make an email template, you can easily make one:</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#6c7086]">// It&#39;s just a normal function!</span>
+</code></pre></div><h2 class="text-xl" id>5. Email template (optional)</h2><p>If you want to make an email template, you can easily make one:</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#6c7086]">// It&#39;s just a normal function!</span>
 <span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">email_template</span><span class="text-[#cdd6f4]">(</span>message<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
   <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">p</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">text</span><span class="text-[#cdd6f4]">(</span>message<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
   <span class="text-[#89dceb]">|&gt;</span> element<span class="text-[#cdd6f4]">.</span>to_string
@@ -196,5 +196,7 @@ simple.</p><h2 class="text-xl" id>4. Use send_email</h2><div class="bg-[#313244]
     <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#89b4fa]">handle_error</span><span class="text-[#cdd6f4]">(</span>err<span class="text-[#cdd6f4]">)</span>
   <span class="text-[#cdd6f4]">}</span>
 <span class="text-[#cdd6f4]">}</span>
-</code></pre></div><p>Here&#39;s where Lustre shine, you can just write the entire thing in Gleam! In other
+</code></pre></div><p>Now let&#39;s compile and run the code, enter <code>gleam run</code> on the terminal. If nothing&#39;s
+wrong you should see &quot;Email sent!&quot; on the terminal. You can check in Mailtrap&#39;s sandbox
+to see there&#39;s a new email sent.</p><p>Here&#39;s where Lustre shine, you can just write the entire thing in Gleam! In other
 languages you&#39;d need to learn custom templating syntax.</p><p>And that&#39;s it folks! If you find this useful, feel free to share it =)</p><!-- /lustre:fragment --></div></article></body></html>
