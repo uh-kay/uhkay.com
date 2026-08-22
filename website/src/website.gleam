@@ -1,10 +1,10 @@
 import blogatto
 import blogatto/config
-import blogatto/config/feed
-import blogatto/config/markdown
-import blogatto/config/markdown/code
+import blogatto/config/feed/rss
+import blogatto/config/post
+import blogatto/config/post/code
 import blogatto/error
-import blogatto/post.{type Post}
+import blogatto/post.{type Post} as _
 import gleam/int
 import gleam/io
 import gleam/list
@@ -33,6 +33,10 @@ fn home_view(posts: List(Post(Nil))) -> Element(Nil) {
 
   html.html([], [
     html.head([], [
+      html.meta([
+        attribute.name("viewport"),
+        attribute.content("width=device-width, initial-scale=1"),
+      ]),
       html.title([], "uhkay homepage"),
       html.meta([
         attribute.name("description"),
@@ -117,18 +121,18 @@ pub fn config() {
     })
 
   let md =
-    markdown.default()
-    |> markdown.markdown_path("./blog")
-    |> markdown.syntax_highlighting(syntax_config)
-    |> markdown.route_prefix("blog")
-    |> markdown.template(post_template)
-    |> markdown.h1(fn(id, children) {
+    post.default()
+    |> post.path("./blog")
+    |> post.syntax_highlighting(syntax_config)
+    |> post.route_prefix("blog")
+    |> post.template(post_template)
+    |> post.h1(fn(id, children) {
       html.h1([attribute.class("text-2xl"), attribute.id(id)], children)
     })
-    |> markdown.h2(fn(id, children) {
+    |> post.h2(fn(id, children) {
       html.h2([attribute.class("text-xl"), attribute.id(id)], children)
     })
-    |> markdown.pre(fn(el) {
+    |> post.pre(fn(el) {
       html.div(
         [
           attribute.class(
@@ -147,7 +151,7 @@ pub fn config() {
         ],
       )
     })
-    |> markdown.a(fn(href, _title, el) {
+    |> post.a(fn(href, _title, el) {
       html.a(
         [
           attribute.class("underline hover:text-ctp-green"),
@@ -156,21 +160,21 @@ pub fn config() {
         el,
       )
     })
-    |> markdown.ul(fn(el) {
+    |> post.ul(fn(el) {
       html.ul([attribute.class("list-disc list-inside")], el)
     })
 
   let rss =
-    feed.new("uhkay's blog", site_url, "my personal blog")
-    |> feed.language("en-us")
-    |> feed.generator("Blogatto")
+    rss.new("uhkay's blog", site_url, "my personal blog")
+    |> rss.language("en-us")
+    |> rss.generator("Blogatto")
 
   config.new(site_url)
   |> config.output_dir("./dist")
   |> config.static_dir("./static")
-  |> config.markdown(md)
+  |> config.post(md)
   |> config.route("/", home_view)
-  |> config.feed(rss)
+  |> config.rss_feed(rss)
 }
 
 fn post_template(post: Post(Nil), _all_posts: List(Post(Nil))) {
@@ -178,6 +182,10 @@ fn post_template(post: Post(Nil), _all_posts: List(Post(Nil))) {
 
   html.html([attribute.lang(lang)], [
     html.head([], [
+      html.meta([
+        attribute.name("viewport"),
+        attribute.content("width=device-width, initial-scale=1"),
+      ]),
       html.meta([attribute.charset("UTF-8")]),
       html.title([], post.title),
       html.meta([
