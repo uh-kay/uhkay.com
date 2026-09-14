@@ -515,7 +515,9 @@ is Erlang.
 
 ## Running the Example
 
-To run the example
+To run the example, run this command: `gleam run -m lustre/dev start`. This
+command will run Lustre dev tool server and you can open the website on
+`http://localhost:1234`.
 
 ## Conclusion
 

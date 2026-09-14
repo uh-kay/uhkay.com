@@ -446,7 +446,9 @@ midway, then we add 1 to index. Then we can send the value to the message which
 will be updated in update function.</p><p>Note that to get the rect we need to write a Javascript FFI <code>get_rect</code> which
 takes a dynamic and return a <code>Rect</code>. Don&#39;t forget to set the target to &quot;javscript&quot;
 in gleam.toml or else the compiler would complain because by default the target
-is Erlang.</p><h2 class="text-xl" id>Running the Example</h2><p>To run the example</p><h2 class="text-xl" id>Conclusion</h2><p>That&#39;s it peeps! Lustre is a simple yet powerful library. While there&#39;s a lot of
+is Erlang.</p><h2 class="text-xl" id>Running the Example</h2><p>To run the example, run this command: <code>gleam run -m lustre/dev start</code>. This
+command will run Lustre dev tool server and you can open the website on
+<code>http://localhost:1234</code>.</p><h2 class="text-xl" id>Conclusion</h2><p>That&#39;s it peeps! Lustre is a simple yet powerful library. While there&#39;s a lot of
 library for drag and drop functionality in Lustre, I wrote this blog to highlight
 that it&#39;s very simple to write it yourself and use the libraries if you need
 something more. Hope you find the guide useful :)</p><!-- /lustre:fragment --></div></article></body></html>
