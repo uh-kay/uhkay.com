@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en"><head><meta content="width=device-width, initial-scale=1" name="viewport"><meta charset="UTF-8"><title>Drag and Drop Using Lustre</title><meta content="Implement drag and drop without any libraries beside Lustre" name="description"><link href="/css/output.css" rel="stylesheet"></head><body class="bg-ctp-base text-ctp-text dark:mocha"><nav><ul class="flex gap-3 p-4 [&amp;&gt;li&gt;a]:hover:text-ctp-green"><li><a href="/">home</a></li><li><a href="/projects">projects</a></li><li><a href="/about">about</a></li></ul></nav><article class="flex justify-center"><div class="max-w-3xl w-full px-4 my-8 space-y-6"><h1 class="text-2xl font-bold">Drag and Drop Using Lustre</h1><p>Sep 14, 2026</p><!-- lustre:fragment --><p>This week I&#39;m trying to implement drag and drop in my project. The project uses
+Lustre for the frontend side and I don&#39;t know how to code drag and drop in Lustre.
+And so, after experimenting I manage to make it work. In this blog, we&#39;re going
+to implement one of MDN&#39;s example on the drag and drop API: making a kanban
+board (<a class="underline hover:text-ctp-green" href="https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API/Kanban_board">source</a>)!</p><p>Btw all the code for this blog is available <a class="underline hover:text-ctp-green" href="https://github.com/uh-kay/lustre_dnd_example">here</a>.</p><p>First let&#39;s make a new empty project. Run <code>gleam new lustre_dnd_example</code>.
+Then run <code>gleam add lustre</code> and <code>gleam add lustre_dev_tools --dev</code>.</p><p>Inside lustre_dnd_example.gleam write this:</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/dict</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/dynamic</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/dynamic/decode</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/int</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/list</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/option</span><span class="text-[#cdd6f4]">.</span><span class="text-[#cdd6f4]">{</span><span class="text-[#f9e2af]">Some</span><span class="text-[#cdd6f4]">}</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">gleam/result</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">lustre</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">lustre/attribute</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">lustre/element</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">lustre/element/html</span>
+<span class="text-[#cba6f7]">import</span> <span class="text-[#89dceb]">lustre/event</span>
+
+<span class="text-[#cba6f7]">pub</span> <span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">main</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Nil</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">let</span> app <span class="text-[#89dceb]">=</span> <span class="text-[#89dceb]">lustre</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">simple</span><span class="text-[#cdd6f4]">(</span>init<span class="text-[#cdd6f4]">,</span> update<span class="text-[#cdd6f4]">,</span> view<span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cba6f7]">let</span> <span class="text-[#cba6f7]">assert</span> <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">=</span> <span class="text-[#89dceb]">lustre</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">start</span><span class="text-[#cdd6f4]">(</span>app<span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;#app&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#f9e2af]">Nil</span><span class="text-[#cdd6f4]">)</span>
+
+  <span class="text-[#f9e2af]">Nil</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#6c7086]">// MODEL ----------------------------------------------------------------------</span>
+
+<span class="text-[#cba6f7]">type</span> <span class="text-[#f9e2af]">Model</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">Model</span><span class="text-[#cdd6f4]">(</span>
+    dragged_task<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Option</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DraggedTask</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    hovered_column<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Option</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DropTarget</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    task_columns<span class="text-[#cdd6f4]">:</span> dict<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Dict</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#f9e2af]">List</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">type</span> <span class="text-[#f9e2af]">Task</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span>id<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span> title<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">type</span> <span class="text-[#f9e2af]">DraggedTask</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">DraggedTask</span><span class="text-[#cdd6f4]">(</span>task<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">,</span> from<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">,</span> height<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">type</span> <span class="text-[#f9e2af]">DropTarget</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">DropTarget</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">type</span> <span class="text-[#f9e2af]">ColumnType</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">ToDo</span>
+  <span class="text-[#f9e2af]">InProgress</span>
+  <span class="text-[#f9e2af]">Done</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">type</span> <span class="text-[#f9e2af]">Message</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">UserDroppedTask</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#f9e2af]">UserDraggedOverColumn</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#f9e2af]">UserDraggedOverTask</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#f9e2af]">UserDraggedTask</span><span class="text-[#cdd6f4]">(</span>task<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">,</span> from<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">,</span> height<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">init</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">Model</span><span class="text-[#cdd6f4]">(</span>
+    dragged_task<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">None</span><span class="text-[#cdd6f4]">,</span>
+    task_columns<span class="text-[#cdd6f4]">:</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">new</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">insert</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">ToDo</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span>
+        <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span><span class="text-[#fab387]">1</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;Reinvent universe&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">insert</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">InProgress</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span><span class="text-[#fab387]">2</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;Reinvent wheel&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">insert</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">Done</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span>
+        <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span><span class="text-[#fab387]">3</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;Play Chesshire&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+        <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span><span class="text-[#fab387]">4</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;Make drag and drop using Lustre works&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    hovered_column<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">None</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#6c7086]">// UPDATE ---------------------------------------------------------------------</span>
+
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">update</span><span class="text-[#cdd6f4]">(</span>model<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Model</span><span class="text-[#cdd6f4]">,</span> message<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Message</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">case</span> message <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#f9e2af]">UserDroppedTask</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+      <span class="text-[#cba6f7]">let</span> result <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">{</span>
+        <span class="text-[#cba6f7]">use</span> drop_target <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">try</span><span class="text-[#cdd6f4]">(</span><span class="text-[#89dceb]">option</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">to_result</span><span class="text-[#cdd6f4]">(</span>
+          model<span class="text-[#cdd6f4]">.</span>hovered_column<span class="text-[#cdd6f4]">,</span>
+          <span class="text-[#f9e2af]">Nil</span><span class="text-[#cdd6f4]">,</span>
+        <span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+        <span class="text-[#cba6f7]">use</span> dragged_task <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">try</span><span class="text-[#cdd6f4]">(</span><span class="text-[#89dceb]">option</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">to_result</span><span class="text-[#cdd6f4]">(</span>model<span class="text-[#cdd6f4]">.</span>dragged_task<span class="text-[#cdd6f4]">,</span> <span class="text-[#f9e2af]">Nil</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+        <span class="text-[#cba6f7]">let</span> from <span class="text-[#89dceb]">=</span> dragged_task<span class="text-[#cdd6f4]">.</span>from
+        <span class="text-[#cba6f7]">let</span> dragged_task <span class="text-[#89dceb]">=</span> dragged_task<span class="text-[#cdd6f4]">.</span>task
+
+        <span class="text-[#6c7086]">// Find the original index before the filtering which causes the task</span>
+        <span class="text-[#6c7086]">// index to shift.</span>
+        <span class="text-[#cba6f7]">let</span> original_index <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">get</span><span class="text-[#cdd6f4]">(</span>model<span class="text-[#cdd6f4]">.</span>task_columns<span class="text-[#cdd6f4]">,</span> from<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+          <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+            <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">index_map</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">,</span> <span class="text-[#cba6f7]">fn</span><span class="text-[#cdd6f4]">(</span>task<span class="text-[#cdd6f4]">,</span> i<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span> <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span>task<span class="text-[#cdd6f4]">,</span> i<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">}</span><span class="text-[#cdd6f4]">)</span>
+            <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">find</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cba6f7]">fn</span><span class="text-[#cdd6f4]">(</span>value<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+              <span class="text-[#cba6f7]">let</span> <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span>task<span class="text-[#cdd6f4]">,</span> <span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">=</span> value
+              task<span class="text-[#cdd6f4]">.</span>id <span class="text-[#89dceb]">==</span> dragged_task<span class="text-[#cdd6f4]">.</span>id
+            <span class="text-[#cdd6f4]">}</span><span class="text-[#cdd6f4]">)</span>
+            <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">map</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cba6f7]">fn</span><span class="text-[#cdd6f4]">(</span>value<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+              <span class="text-[#cba6f7]">let</span> <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">,</span> i<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">=</span> value
+              i
+            <span class="text-[#cdd6f4]">}</span><span class="text-[#cdd6f4]">)</span>
+            <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">result</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">unwrap</span><span class="text-[#cdd6f4]">(</span>drop_target<span class="text-[#cdd6f4]">.</span>index<span class="text-[#cdd6f4]">)</span>
+          <span class="text-[#cdd6f4]">}</span>
+          <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> drop_target<span class="text-[#cdd6f4]">.</span>index
+        <span class="text-[#cdd6f4]">}</span>
+
+        <span class="text-[#6c7086]">// Let [&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;] as task column. When we try moving B to</span>
+        <span class="text-[#6c7086]">// between C and D, we move it to index 3. But after filtering, the task</span>
+        <span class="text-[#6c7086]">// index shift and C is at index 1 and D at 2. Moving to index 3 would</span>
+        <span class="text-[#6c7086]">// place it at the end, not between C and D. That&#39;s why when the drop</span>
+        <span class="text-[#6c7086]">// target&#39;s index is bigger than the original, we substract one.</span>
+        <span class="text-[#cba6f7]">let</span> insert_index <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> from <span class="text-[#89dceb]">==</span> to <span class="text-[#cdd6f4]">{</span>
+          <span class="text-[#f9e2af]">True</span> <span class="text-[#cba6f7]">if</span> drop_target<span class="text-[#cdd6f4]">.</span>index <span class="text-[#89dceb]">&gt;</span> original_index <span class="text-[#89dceb]">-&gt;</span> drop_target<span class="text-[#cdd6f4]">.</span>index <span class="text-[#89dceb]">-</span> <span class="text-[#fab387]">1</span>
+          <span style="color:#ffd700;">_</span> <span class="text-[#89dceb]">-&gt;</span> drop_target<span class="text-[#cdd6f4]">.</span>index
+        <span class="text-[#cdd6f4]">}</span>
+
+        <span class="text-[#cba6f7]">let</span> task_columns <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">get</span><span class="text-[#cdd6f4]">(</span>model<span class="text-[#cdd6f4]">.</span>task_columns<span class="text-[#cdd6f4]">,</span> from<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+          <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+            <span class="text-[#cba6f7]">let</span> tasks <span class="text-[#89dceb]">=</span>
+              <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">filter</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">,</span> <span class="text-[#cba6f7]">fn</span><span class="text-[#cdd6f4]">(</span>task<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span> task<span class="text-[#cdd6f4]">.</span>id <span class="text-[#89dceb]">!=</span> dragged_task<span class="text-[#cdd6f4]">.</span>id <span class="text-[#cdd6f4]">}</span><span class="text-[#cdd6f4]">)</span>
+            <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">insert</span><span class="text-[#cdd6f4]">(</span>model<span class="text-[#cdd6f4]">.</span>task_columns<span class="text-[#cdd6f4]">,</span> from<span class="text-[#cdd6f4]">,</span> tasks<span class="text-[#cdd6f4]">)</span>
+          <span class="text-[#cdd6f4]">}</span>
+          <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> model<span class="text-[#cdd6f4]">.</span>task_columns
+        <span class="text-[#cdd6f4]">}</span>
+
+        <span class="text-[#cba6f7]">let</span> task_columns <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">get</span><span class="text-[#cdd6f4]">(</span>task_columns<span class="text-[#cdd6f4]">,</span> to<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+          <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+            <span class="text-[#cba6f7]">let</span> <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span>before<span class="text-[#cdd6f4]">,</span> after<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">=</span> <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">split</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">,</span> insert_index<span class="text-[#cdd6f4]">)</span>
+            <span class="text-[#cba6f7]">let</span> tasks <span class="text-[#89dceb]">=</span> <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">append</span><span class="text-[#cdd6f4]">(</span>before<span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span>dragged_task<span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">..</span>after<span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
+            <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">insert</span><span class="text-[#cdd6f4]">(</span>task_columns<span class="text-[#cdd6f4]">,</span> to<span class="text-[#cdd6f4]">,</span> tasks<span class="text-[#cdd6f4]">)</span>
+          <span class="text-[#cdd6f4]">}</span>
+          <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> model<span class="text-[#cdd6f4]">.</span>task_columns
+        <span class="text-[#cdd6f4]">}</span>
+
+        <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">Model</span><span class="text-[#cdd6f4]">(</span>
+          dragged_task<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">None</span><span class="text-[#cdd6f4]">,</span>
+          task_columns<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span>
+          hovered_column<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">None</span><span class="text-[#cdd6f4]">,</span>
+        <span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#cdd6f4]">}</span>
+
+      <span class="text-[#cba6f7]">case</span> result <span class="text-[#cdd6f4]">{</span>
+        <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span>model<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> model
+        <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> model
+      <span class="text-[#cdd6f4]">}</span>
+    <span class="text-[#cdd6f4]">}</span>
+
+    <span class="text-[#f9e2af]">UserDraggedOverTask</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+      <span class="text-[#cba6f7]">let</span> model <span class="text-[#89dceb]">=</span> <span class="text-[#f9e2af]">Model</span><span class="text-[#cdd6f4]">(</span><span class="text-[#89dceb]">..</span>model<span class="text-[#cdd6f4]">,</span> hovered_column<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Some</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DropTarget</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+
+      model
+    <span class="text-[#cdd6f4]">}</span>
+
+    <span class="text-[#f9e2af]">UserDraggedTask</span><span class="text-[#cdd6f4]">(</span>task<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span> from<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span> height<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+      <span class="text-[#cba6f7]">let</span> model <span class="text-[#89dceb]">=</span>
+        <span class="text-[#f9e2af]">Model</span><span class="text-[#cdd6f4]">(</span><span class="text-[#89dceb]">..</span>model<span class="text-[#cdd6f4]">,</span> dragged_task<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Some</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DraggedTask</span><span class="text-[#cdd6f4]">(</span>task<span class="text-[#cdd6f4]">,</span> from<span class="text-[#cdd6f4]">,</span> height<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+
+      model
+    <span class="text-[#cdd6f4]">}</span>
+
+    <span class="text-[#f9e2af]">UserDraggedOverColumn</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+      <span class="text-[#cba6f7]">let</span> index <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">get</span><span class="text-[#cdd6f4]">(</span>model<span class="text-[#cdd6f4]">.</span>task_columns<span class="text-[#cdd6f4]">,</span> to<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+        <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">length</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">)</span>
+        <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#fab387]">0</span>
+      <span class="text-[#cdd6f4]">}</span>
+
+      <span class="text-[#cba6f7]">let</span> hovered_column <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> model<span class="text-[#cdd6f4]">.</span>hovered_column <span class="text-[#cdd6f4]">{</span>
+        <span class="text-[#f9e2af]">Some</span><span class="text-[#cdd6f4]">(</span>drop_target<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Some</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DropTarget</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">,</span> drop_target<span class="text-[#cdd6f4]">.</span>index<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+        option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">None</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Some</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DropTarget</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#cdd6f4]">}</span>
+
+      <span class="text-[#cba6f7]">let</span> model <span class="text-[#89dceb]">=</span> <span class="text-[#f9e2af]">Model</span><span class="text-[#cdd6f4]">(</span><span class="text-[#89dceb]">..</span>model<span class="text-[#cdd6f4]">,</span> hovered_column<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">)</span>
+
+      model
+    <span class="text-[#cdd6f4]">}</span>
+  <span class="text-[#cdd6f4]">}</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#6c7086]">// VIEW -----------------------------------------------------------------------</span>
+
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">view</span><span class="text-[#cdd6f4]">(</span>model<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Model</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> element<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Element</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">div</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;flex flex-col p-4 gap-4&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span>
+    <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">h1</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;text-2xl&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">text</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;Lustre Kanban Board&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">div</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;flex gap-4&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span>
+      <span class="text-[#89b4fa]">task_column_view</span><span class="text-[#cdd6f4]">(</span>
+        <span class="text-[#a6e3a1]">&quot;To Do&quot;</span><span class="text-[#cdd6f4]">,</span>
+        <span class="text-[#f9e2af]">ToDo</span><span class="text-[#cdd6f4]">,</span>
+        model<span class="text-[#cdd6f4]">.</span>task_columns<span class="text-[#cdd6f4]">,</span>
+        model<span class="text-[#cdd6f4]">.</span>dragged_task<span class="text-[#cdd6f4]">,</span>
+        model<span class="text-[#cdd6f4]">.</span>hovered_column<span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89b4fa]">task_column_view</span><span class="text-[#cdd6f4]">(</span>
+        <span class="text-[#a6e3a1]">&quot;In Progress&quot;</span><span class="text-[#cdd6f4]">,</span>
+        <span class="text-[#f9e2af]">InProgress</span><span class="text-[#cdd6f4]">,</span>
+        model<span class="text-[#cdd6f4]">.</span>task_columns<span class="text-[#cdd6f4]">,</span>
+        model<span class="text-[#cdd6f4]">.</span>dragged_task<span class="text-[#cdd6f4]">,</span>
+        model<span class="text-[#cdd6f4]">.</span>hovered_column<span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89b4fa]">task_column_view</span><span class="text-[#cdd6f4]">(</span>
+        <span class="text-[#a6e3a1]">&quot;Done&quot;</span><span class="text-[#cdd6f4]">,</span>
+        <span class="text-[#f9e2af]">Done</span><span class="text-[#cdd6f4]">,</span>
+        model<span class="text-[#cdd6f4]">.</span>task_columns<span class="text-[#cdd6f4]">,</span>
+        model<span class="text-[#cdd6f4]">.</span>dragged_task<span class="text-[#cdd6f4]">,</span>
+        model<span class="text-[#cdd6f4]">.</span>hovered_column<span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">task_column_view</span><span class="text-[#cdd6f4]">(</span>
+  column_title<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">,</span>
+  column_type<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">,</span>
+  tasks<span class="text-[#cdd6f4]">:</span> dict<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Dict</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#f9e2af]">List</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  dragged_task<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Option</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DraggedTask</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+  hovered_column<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Option</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DropTarget</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">let</span> tasks <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">get</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">,</span> column_type<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#f9e2af]">Ok</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> tasks
+    <span class="text-[#f9e2af]">Error</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#cdd6f4]">]</span>
+  <span class="text-[#cdd6f4]">}</span>
+  <span class="text-[#cba6f7]">let</span> current_task_title <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> dragged_task <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#f9e2af]">Some</span><span class="text-[#cdd6f4]">(</span>dragged_task<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+      dragged_task<span class="text-[#cdd6f4]">.</span>task<span class="text-[#cdd6f4]">.</span>title
+    <span class="text-[#cdd6f4]">}</span>
+    option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">None</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#a6e3a1]">&quot;&quot;</span>
+  <span class="text-[#cdd6f4]">}</span>
+
+  <span class="text-[#cba6f7]">let</span> tasks <span class="text-[#89dceb]">=</span>
+    <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">index_map</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">,</span> <span class="text-[#cba6f7]">fn</span><span class="text-[#cdd6f4]">(</span>task<span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+      <span class="text-[#89b4fa]">task_view</span><span class="text-[#cdd6f4]">(</span>
+        task<span class="text-[#cdd6f4]">.</span>id<span class="text-[#cdd6f4]">,</span>
+        task<span class="text-[#cdd6f4]">.</span>title<span class="text-[#cdd6f4]">,</span>
+        column_type<span class="text-[#cdd6f4]">,</span>
+        current_task_title <span class="text-[#89dceb]">==</span> task<span class="text-[#cdd6f4]">.</span>title<span class="text-[#cdd6f4]">,</span>
+        index<span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cdd6f4]">}</span><span class="text-[#cdd6f4]">)</span>
+
+  <span class="text-[#cba6f7]">let</span> tasks <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> hovered_column<span class="text-[#cdd6f4]">,</span> dragged_task <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#f9e2af]">Some</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DropTarget</span><span class="text-[#cdd6f4]">(</span>hovered_type<span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#f9e2af]">Some</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">DraggedTask</span><span class="text-[#cdd6f4]">(</span>height<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">..</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#cba6f7]">if</span> hovered_type <span class="text-[#89dceb]">==</span> column_type
+    <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+      <span class="text-[#cba6f7]">let</span> <span class="text-[#cdd6f4]">#</span><span class="text-[#cdd6f4]">(</span>before<span class="text-[#cdd6f4]">,</span> after<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">=</span> <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">split</span><span class="text-[#cdd6f4]">(</span>tasks<span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#89dceb]">list</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">append</span><span class="text-[#cdd6f4]">(</span>before<span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#89b4fa]">placeholder_view</span><span class="text-[#cdd6f4]">(</span>height<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">..</span>after<span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cdd6f4]">}</span>
+    <span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">,</span> <span style="color:#ffd700;">_</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#cdd6f4]">{</span>
+      tasks
+    <span class="text-[#cdd6f4]">}</span>
+  <span class="text-[#cdd6f4]">}</span>
+
+  <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">div</span><span class="text-[#cdd6f4]">(</span>
+    <span class="text-[#cdd6f4]">[</span>
+      <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">on</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;drop&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">success</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">UserDroppedTask</span><span class="text-[#cdd6f4]">(</span>column_type<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">on</span><span class="text-[#cdd6f4]">(</span>
+        <span class="text-[#a6e3a1]">&quot;dragover&quot;</span><span class="text-[#cdd6f4]">,</span>
+        <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">success</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">UserDraggedOverColumn</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span> column_type<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">)</span>
+        <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">stop_propagation</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span>
+        <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">prevent_default</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;border p-4 rounded-md w-64 min-h-40&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">[</span>
+      <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">h2</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;mb-2&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">text</span><span class="text-[#cdd6f4]">(</span>column_title<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">ul</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;flex flex-col gap-2 min-h-40&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> tasks<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">task_view</span><span class="text-[#cdd6f4]">(</span>
+  task_id<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+  task_title<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">,</span>
+  column_type<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">,</span>
+  dragged<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Bool</span><span class="text-[#cdd6f4]">,</span>
+  index<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">let</span> dragover_decoder <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#cba6f7]">use</span> y <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">field</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;clientY&quot;</span><span class="text-[#cdd6f4]">,</span> decode<span class="text-[#cdd6f4]">.</span>int<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cba6f7]">use</span> element <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">field</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;currentTarget&quot;</span><span class="text-[#cdd6f4]">,</span> decode<span class="text-[#cdd6f4]">.</span>dynamic<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cba6f7]">let</span> rect <span class="text-[#89dceb]">=</span> <span class="text-[#89b4fa]">get_rect</span><span class="text-[#cdd6f4]">(</span>element<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cba6f7]">let</span> midpoint <span class="text-[#89dceb]">=</span> rect<span class="text-[#cdd6f4]">.</span>y <span class="text-[#89dceb]">+</span> rect<span class="text-[#cdd6f4]">.</span>height <span class="text-[#89dceb]">/</span> <span class="text-[#fab387]">2</span>
+
+    <span class="text-[#cba6f7]">let</span> index <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> y <span class="text-[#89dceb]">&gt;</span> midpoint <span class="text-[#cdd6f4]">{</span>
+      <span class="text-[#f9e2af]">True</span> <span class="text-[#89dceb]">-&gt;</span> index <span class="text-[#89dceb]">+</span> <span class="text-[#fab387]">1</span>
+      <span class="text-[#f9e2af]">False</span> <span class="text-[#89dceb]">-&gt;</span> index
+    <span class="text-[#cdd6f4]">}</span>
+
+    <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">success</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">UserDraggedOverTask</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span> column_type<span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+  <span class="text-[#cba6f7]">let</span> dragstart_decoder <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#cba6f7]">use</span> element <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">field</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;currentTarget&quot;</span><span class="text-[#cdd6f4]">,</span> decode<span class="text-[#cdd6f4]">.</span>dynamic<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cba6f7]">let</span> rect <span class="text-[#89dceb]">=</span> <span class="text-[#89b4fa]">get_rect</span><span class="text-[#cdd6f4]">(</span>element<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">success</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">UserDraggedTask</span><span class="text-[#cdd6f4]">(</span>
+      task<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span>task_id<span class="text-[#cdd6f4]">,</span> task_title<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      from<span class="text-[#cdd6f4]">:</span> column_type<span class="text-[#cdd6f4]">,</span>
+      height<span class="text-[#cdd6f4]">:</span> rect<span class="text-[#cdd6f4]">.</span>height<span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+
+  <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">li</span><span class="text-[#cdd6f4]">(</span>
+    <span class="text-[#cdd6f4]">[</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">draggable</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">True</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">on</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;dragstart&quot;</span><span class="text-[#cdd6f4]">,</span> dragstart_decoder<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">on</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;dragover&quot;</span><span class="text-[#cdd6f4]">,</span> dragover_decoder<span class="text-[#cdd6f4]">)</span>
+        <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">stop_propagation</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span>
+        <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">prevent_default</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;border p-2 rounded-md hover:cursor-grab&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;active:cursor-grabbing text-wrap max-w-64&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cba6f7]">case</span> dragged <span class="text-[#cdd6f4]">{</span>
+        <span class="text-[#f9e2af]">True</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#a6e3a1]">&quot;opacity-20&quot;</span>
+        <span class="text-[#f9e2af]">False</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#a6e3a1]">&quot;&quot;</span>
+      <span class="text-[#cdd6f4]">}</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">p</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">text</span><span class="text-[#cdd6f4]">(</span>task_title<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">placeholder_view</span><span class="text-[#cdd6f4]">(</span>height<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">li</span><span class="text-[#cdd6f4]">(</span>
+    <span class="text-[#cdd6f4]">[</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;border p-2 rounded-md&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">style</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;height&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#89dceb]">int</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">to_string</span><span class="text-[#cdd6f4]">(</span>height<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">&lt;&gt;</span> <span class="text-[#a6e3a1]">&quot;px&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">[</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+<span class="text-[#6c7086]">// EXTERNAL -------------------------------------------------------------------</span>
+
+<span class="text-[#cba6f7]">pub</span> <span class="text-[#cba6f7]">type</span> <span class="text-[#f9e2af]">Rect</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">Rect</span><span class="text-[#cdd6f4]">(</span>
+    x<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+    y<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+    width<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+    height<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+    top<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+    right<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+    bottom<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+    left<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+
+@<span class="text-[#cba6f7]">external</span><span class="text-[#cdd6f4]">(</span>javascript<span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;./rect.ffi.mjs&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;getBoundingClientRect&quot;</span><span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">get_rect</span><span class="text-[#cdd6f4]">(</span>element<span class="text-[#cdd6f4]">:</span> dynamic<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">Dynamic</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#f9e2af]">Rect</span>
+</code></pre></div><p>Create one more file under /src and name it <code>rect.ffi.mjs</code> and write this:</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-js"><span class="text-[#6c7086]">/**
+ *
+ * @param {Element} element
+ * @returns {DOMRect}
+ */</span>
+
+<span class="text-[#cba6f7]">export</span> <span class="text-[#cba6f7]">function</span> <span class="text-[#89b4fa]">getBoundingClientRect</span><span class="text-[#cdd6f4]">(</span>element<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">return</span> element<span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">getBoundingClientRect</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">;</span>
+<span class="text-[#cdd6f4]">}</span>
+</code></pre></div><p>We&#39;ll have three part: model, update, and view. Model will contain all the data
+the webpage will need to render the page. Update will update the model, each time
+the model updates, the page will rerender. And view defines how we should use
+the model to render the page.</p><h2 class="text-xl" id>Model</h2><p>The <code>Model</code> type have three record: dragged_task which holds data of the currently
+dragged task, hovered_column which contains information of the drop target, and
+task_columns which has all the task data of all column.</p><p><code>Message</code> type contains all the possible user action. Later we will pattern
+match the message in the update function.</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">init</span><span class="text-[#cdd6f4]">(</span><span style="color:#ffd700;">_</span><span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#f9e2af]">Model</span><span class="text-[#cdd6f4]">(</span>
+    dragged_task<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">None</span><span class="text-[#cdd6f4]">,</span>
+    task_columns<span class="text-[#cdd6f4]">:</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">new</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">insert</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">ToDo</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span>
+        <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span><span class="text-[#fab387]">1</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;Reinvent universe&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">insert</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">InProgress</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span><span class="text-[#fab387]">2</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;Reinvent wheel&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span>
+      <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">dict</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">insert</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">Done</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span>
+        <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span><span class="text-[#fab387]">3</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;Play Chesshire&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+        <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span><span class="text-[#fab387]">4</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#a6e3a1]">&quot;Make drag and drop using Lustre works&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    hovered_column<span class="text-[#cdd6f4]">:</span> option<span class="text-[#cdd6f4]">.</span><span class="text-[#f9e2af]">None</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+</code></pre></div><p>In <code>init()</code> we create the model and initial data.</p><h2 class="text-xl" id>Update</h2><p><code>update</code> takes a model and message. We then pattern match the message and update
+the model according to the message.</p><p>When the user dropped the task, we first get the drop_target and dragged_task,
+if any of that is missing, we don&#39;t update the model. We must first get the
+original index and calculate the insert index because when the list is filtered,
+the index would shift making the placement of the task incorrect.</p><p>Let&#39;s assume the task column is [&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;]. When we try to move B to
+between C and D, we move it to index 3. But after we filter B out, A is index 0
+C is 1, D is 2. Moving to index 3 would mean placing B to the last. That&#39;s why
+we calculate the original index and then if the drop_target&#39;s index is bigger
+than the original index, we reduce the insert_index by one.</p><p>The we simply split the tasks into two based on the insert_index add the
+dragged_task to the middle and append everything together and insert it into the
+dict.</p><p>When user dragged over task or dragged task, we simply update the either the
+hovered_column or dragged_task.</p><p>When the user dragged over column, we don&#39;t know if the hovered column is empty
+or not so we first get length and update index before updating the
+hovered_column.</p><h2 class="text-xl" id>View</h2><p>The view function will render the page based on the model. I divide the view
+into components which are just function. There are <code>task_column_view</code> to render
+the column, <code>task_view</code> to render individual task, and <code>placeholder_view</code> to render
+the placeholder when dragging over a column.</p><p>The interesting bit is on the <code>task_view</code>:</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-gleam"><span class="text-[#cba6f7]">fn</span> <span class="text-[#89b4fa]">task_view</span><span class="text-[#cdd6f4]">(</span>
+  task_id<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+  task_title<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">String</span><span class="text-[#cdd6f4]">,</span>
+  column_type<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">ColumnType</span><span class="text-[#cdd6f4]">,</span>
+  dragged<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Bool</span><span class="text-[#cdd6f4]">,</span>
+  index<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Int</span><span class="text-[#cdd6f4]">,</span>
+<span class="text-[#cdd6f4]">)</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#cba6f7]">let</span> dragover_decoder <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#cba6f7]">use</span> y <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">field</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;clientY&quot;</span><span class="text-[#cdd6f4]">,</span> decode<span class="text-[#cdd6f4]">.</span>int<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cba6f7]">use</span> element <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">field</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;currentTarget&quot;</span><span class="text-[#cdd6f4]">,</span> decode<span class="text-[#cdd6f4]">.</span>dynamic<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cba6f7]">let</span> rect <span class="text-[#89dceb]">=</span> <span class="text-[#89b4fa]">get_rect</span><span class="text-[#cdd6f4]">(</span>element<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cba6f7]">let</span> midpoint <span class="text-[#89dceb]">=</span> rect<span class="text-[#cdd6f4]">.</span>y <span class="text-[#89dceb]">+</span> rect<span class="text-[#cdd6f4]">.</span>height <span class="text-[#89dceb]">/</span> <span class="text-[#fab387]">2</span>
+
+    <span class="text-[#cba6f7]">let</span> index <span class="text-[#89dceb]">=</span> <span class="text-[#cba6f7]">case</span> y <span class="text-[#89dceb]">&gt;</span> midpoint <span class="text-[#cdd6f4]">{</span>
+      <span class="text-[#f9e2af]">True</span> <span class="text-[#89dceb]">-&gt;</span> index <span class="text-[#89dceb]">+</span> <span class="text-[#fab387]">1</span>
+      <span class="text-[#f9e2af]">False</span> <span class="text-[#89dceb]">-&gt;</span> index
+    <span class="text-[#cdd6f4]">}</span>
+
+    <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">success</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">UserDraggedOverTask</span><span class="text-[#cdd6f4]">(</span>to<span class="text-[#cdd6f4]">:</span> column_type<span class="text-[#cdd6f4]">,</span> index<span class="text-[#cdd6f4]">:</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+  <span class="text-[#cba6f7]">let</span> dragstart_decoder <span class="text-[#89dceb]">=</span> <span class="text-[#cdd6f4]">{</span>
+    <span class="text-[#cba6f7]">use</span> element <span class="text-[#89dceb]">&lt;-</span> <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">field</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;currentTarget&quot;</span><span class="text-[#cdd6f4]">,</span> decode<span class="text-[#cdd6f4]">.</span>dynamic<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#cba6f7]">let</span> rect <span class="text-[#89dceb]">=</span> <span class="text-[#89b4fa]">get_rect</span><span class="text-[#cdd6f4]">(</span>element<span class="text-[#cdd6f4]">)</span>
+    <span class="text-[#89dceb]">decode</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">success</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">UserDraggedTask</span><span class="text-[#cdd6f4]">(</span>
+      task<span class="text-[#cdd6f4]">:</span> <span class="text-[#f9e2af]">Task</span><span class="text-[#cdd6f4]">(</span>task_id<span class="text-[#cdd6f4]">,</span> task_title<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      from<span class="text-[#cdd6f4]">:</span> column_type<span class="text-[#cdd6f4]">,</span>
+      height<span class="text-[#cdd6f4]">:</span> rect<span class="text-[#cdd6f4]">.</span>height<span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">)</span>
+  <span class="text-[#cdd6f4]">}</span>
+
+  <span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">li</span><span class="text-[#cdd6f4]">(</span>
+    <span class="text-[#cdd6f4]">[</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">draggable</span><span class="text-[#cdd6f4]">(</span><span class="text-[#f9e2af]">True</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">on</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;dragstart&quot;</span><span class="text-[#cdd6f4]">,</span> dragstart_decoder<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">on</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;dragover&quot;</span><span class="text-[#cdd6f4]">,</span> dragover_decoder<span class="text-[#cdd6f4]">)</span>
+        <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">stop_propagation</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span>
+        <span class="text-[#89dceb]">|&gt;</span> <span class="text-[#89dceb]">event</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">prevent_default</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;border p-2 rounded-md hover:cursor-grab&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;active:cursor-grabbing text-wrap max-w-64&quot;</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+      <span class="text-[#89dceb]">attribute</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">class</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cba6f7]">case</span> dragged <span class="text-[#cdd6f4]">{</span>
+        <span class="text-[#f9e2af]">True</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#a6e3a1]">&quot;opacity-20&quot;</span>
+        <span class="text-[#f9e2af]">False</span> <span class="text-[#89dceb]">-&gt;</span> <span class="text-[#a6e3a1]">&quot;&quot;</span>
+      <span class="text-[#cdd6f4]">}</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span>
+    <span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">p</span><span class="text-[#cdd6f4]">(</span><span class="text-[#cdd6f4]">[</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">[</span><span class="text-[#89dceb]">html</span><span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">text</span><span class="text-[#cdd6f4]">(</span>task_title<span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">]</span><span class="text-[#cdd6f4]">,</span>
+  <span class="text-[#cdd6f4]">)</span>
+<span class="text-[#cdd6f4]">}</span>
+</code></pre></div><p>Notice the decoder is decoding <code>clientY</code> and <code>currentTarget</code>. Lustre&#39;s <code>event.on</code>
+can run a decoder on the event object. So it&#39;s equivalent to</p><div class="bg-[#313244] p-3 rounded-lg border border-[#45475a] shadow-sm"><pre class="text-[#cdd6f4] font-mono text-sm overflow-x-auto"><code class="language-javascript">element<span class="text-[#cdd6f4]">.</span><span class="text-[#89b4fa]">addEventListener</span><span class="text-[#cdd6f4]">(</span><span class="text-[#a6e3a1]">&quot;dragover&quot;</span><span class="text-[#cdd6f4]">,</span> <span class="text-[#cdd6f4]">(</span>event<span class="text-[#cdd6f4]">)</span> <span class="text-[#89dceb]">=&gt;</span> <span class="text-[#cdd6f4]">{</span>
+  <span class="text-[#6c7086]">// do something with event object</span>
+<span class="text-[#cdd6f4]">}</span><span class="text-[#cdd6f4]">)</span><span class="text-[#cdd6f4]">;</span>
+</code></pre></div><p>Here we calculate midway point to get the index. If mouse cursor (y) is past
+midway, then we add 1 to index. Then we can send the value to the message which
+will be updated in update function.</p><p>Note that to get the rect we need to write a Javascript FFI <code>get_rect</code> which
+takes a dynamic and return a <code>Rect</code>. Don&#39;t forget to set the target to &quot;javscript&quot;
+in gleam.toml or else the compiler would complain because by default the target
+is Erlang.</p><h2 class="text-xl" id>Running the Example</h2><p>To run the example</p><h2 class="text-xl" id>Conclusion</h2><p>That&#39;s it peeps! Lustre is a simple yet powerful library. While there&#39;s a lot of
+library for drag and drop functionality in Lustre, I wrote this blog to highlight
+that it&#39;s very simple to write it yourself and use the libraries if you need
+something more. Hope you find the guide useful :)</p><!-- /lustre:fragment --></div></article></body></html>
