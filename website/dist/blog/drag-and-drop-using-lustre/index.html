@@ -448,7 +448,14 @@ takes a dynamic and return a <code>Rect</code>. Don&#39;t forget to set the targ
 in gleam.toml or else the compiler would complain because by default the target
 is Erlang.</p><h2 class="text-xl" id>Running the Example</h2><p>To run the example, run this command: <code>gleam run -m lustre/dev start</code>. This
 command will run Lustre dev tool server and you can open the website on
-<code>http://localhost:1234</code>.</p><h2 class="text-xl" id>Conclusion</h2><p>That&#39;s it peeps! Lustre is a simple yet powerful library. While there&#39;s a lot of
+<code>http://localhost:1234</code>.</p><h2 class="text-xl" id>Mobile Support</h2><p>If you want to also support mobile web browsers, you should use Pointer Events
+API instead of Drag and Drop API because Drag and Drop API on mobile is poor or
+unsupported. You can find an example using Lustre <a class="underline hover:text-ctp-green" href="https://github.com/uh-kay/lustre_dnd_pointer_example">here</a>.
+The main difference is we use pointer event instead of drag event on view. The
+other difference is that we need to add <code>touch-action-none</code> on task to disable
+the default behavior of scrolling or zooming on mobile. We also need to add
+another JS FFI code to release pointer capture so the pointer can target elements
+underneath.</p><h2 class="text-xl" id>Conclusion</h2><p>That&#39;s it peeps! Lustre is a simple yet powerful library. While there&#39;s a lot of
 library for drag and drop functionality in Lustre, I wrote this blog to highlight
 that it&#39;s very simple to write it yourself and use the libraries if you need
 something more. Hope you find the guide useful :)</p><!-- /lustre:fragment --></div></article></body></html>
