@@ -519,6 +519,17 @@ To run the example, run this command: `gleam run -m lustre/dev start`. This
 command will run Lustre dev tool server and you can open the website on
 `http://localhost:1234`.
 
+## Mobile Support
+
+If you want to also support mobile web browsers, you should use Pointer Events
+API instead of Drag and Drop API because Drag and Drop API on mobile is poor or
+unsupported. You can find an example using Lustre [here](https://github.com/uh-kay/lustre_dnd_pointer_example).
+The main difference is we use pointer event instead of drag event on view. The
+other difference is that we need to add `touch-action-none` on task to disable
+the default behavior of scrolling or zooming on mobile. We also need to add
+another JS FFI code to release pointer capture so the pointer can target elements
+underneath.
+
 ## Conclusion
 
 That's it peeps! Lustre is a simple yet powerful library. While there's a lot of
